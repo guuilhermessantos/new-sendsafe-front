@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5000';
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { xmlId: string } }
@@ -7,25 +9,25 @@ export async function GET(
   try {
     const { xmlId } = params;
 
-    // Mock data - in a real application, this would come from a database
-    const mockPdfFiles = [
-      {
-        id: `pdf_${xmlId}_1`,
-        filename: `document_${xmlId}_DANFE.pdf`,
-        xmlId,
-        type: 'DANFE' as const,
-        createdAt: new Date(Date.now() - 1000 * 60 * 60).toISOString(), // 1 hour ago
+    // Get authorization header from the request
+    const authHeader = request.headers.get('authorization');
+    
+    // Forward the request to the backend
+    const response = await fetch(`${BACKEND_URL}/api/pdf/xml/${xmlId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authHeader && { 'Authorization': authHeader }),
       },
-      {
-        id: `pdf_${xmlId}_2`,
-        filename: `document_${xmlId}_CTE.pdf`,
-        xmlId,
-        type: 'CTE' as const,
-        createdAt: new Date().toISOString(),
-      }
-    ];
+    });
 
-    return NextResponse.json(mockPdfFiles);
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Failed to list PDFs' }));
+      return NextResponse.json(errorData, { status: response.status });
+    }
+
+    const result = await response.json();
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Error listing PDFs for XML:', error);
     return NextResponse.json({ error: 'Failed to list PDFs' }, { status: 500 });

@@ -1,31 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5000';
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '10');
+    const page = searchParams.get('page') || '1';
+    const limit = searchParams.get('limit') || '10';
 
-    // Mock data - in a real application, this would come from a database
-    const mockFiles = Array.from({ length: 25 }, (_, i) => ({
-      id: (i + 1).toString(),
-      filename: `document_${i + 1}.xml`,
-      originalName: `document_${i + 1}.xml`,
-      size: Math.floor(Math.random() * 1000000) + 10000,
-      uploadedAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString(),
-    }));
-
-    const startIndex = (page - 1) * limit;
-    const endIndex = startIndex + limit;
-    const files = mockFiles.slice(startIndex, endIndex);
-    const total = mockFiles.length;
-
-    return NextResponse.json({
-      files,
-      total,
-      page,
-      limit
+    // Get authorization header from the request
+    const authHeader = request.headers.get('authorization');
+    
+    // Forward the request to the backend
+    const response = await fetch(`${BACKEND_URL}/api/xml/list?page=${page}&limit=${limit}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authHeader && { 'Authorization': authHeader }),
+      },
     });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Failed to list files' }));
+      return NextResponse.json(errorData, { status: response.status });
+    }
+
+    const result = await response.json();
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Error listing XML files:', error);
     return NextResponse.json({ error: 'Failed to list files' }, { status: 500 });

@@ -1,8 +1,8 @@
 import axios from 'axios';
 
-// Para desenvolvimento, usar as rotas do Next.js (porta 3000)
+// Para desenvolvimento, usar o backend (porta 5000)
 // Para produção, usar o backend (porta 5000)
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'development' ? '' : 'http://localhost:5000');
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -58,12 +58,58 @@ export interface XMLFile {
   xmlContent?: string;
 }
 
+export interface Product {
+  index: number;
+  cProd: string;
+  xProd: string;
+  NCM: string;
+  CFOP: string;
+  uCom: string;
+  qCom: string;
+  vUnCom: string;
+  vProd: string;
+  vBC: string;
+  vICMS: string;
+  vIPI: string;
+}
+
+export interface ProductsResponse {
+  xmlId: string;
+  products: Product[];
+  totalProducts: number;
+}
+
+export interface UpdateProductsRequest {
+  products: Product[];
+}
+
+export interface UpdateProductsResponse {
+  message: string;
+  file: {
+    id: string;
+    filename: string;
+    status: string;
+    updatedAt: string;
+  };
+  productsUpdated: number;
+}
+
 export interface PDFFile {
   id: string;
   filename: string;
-  xmlId: string;
-  type: 'DANFE' | 'CTE' | 'OTHER';
+  path?: string;
+  size?: number;
+  type: 'NFe' | 'CTe' | 'NFCe' | 'DANFE' | 'CTE' | 'OTHER';
   createdAt: string;
+}
+
+export interface PDFResponse {
+  message: string;
+  pdf: PDFFile;
+}
+
+export interface PDFListResponse {
+  pdfs: PDFFile[];
 }
 
 export interface BulkConversion {
@@ -134,12 +180,22 @@ export const xmlAPI = {
     const response = await api.delete(`/api/xml/${id}`);
     return response.data;
   },
+  
+  getProducts: async (id: string) => {
+    const response = await api.get<ProductsResponse>(`/api/xml/${id}/products`);
+    return response.data;
+  },
+  
+  updateProducts: async (id: string, products: Product[]) => {
+    const response = await api.put<UpdateProductsResponse>(`/api/xml/${id}/products`, { products });
+    return response.data;
+  },
 };
 
 export const pdfAPI = {
   convert: async (xmlId: string) => {
-    const response = await api.post<PDFFile>(`/api/pdf/convert/${xmlId}`);
-    return response.data;
+    const response = await api.post<PDFResponse>(`/api/pdf/convert/${xmlId}`);
+    return response.data.pdf;
   },
   
   download: async (pdfId: string) => {
@@ -150,8 +206,92 @@ export const pdfAPI = {
   },
   
   listByXml: async (xmlId: string) => {
-    const response = await api.get<PDFFile[]>(`/api/pdf/xml/${xmlId}`);
-    return response.data;
+    const response = await api.get<PDFListResponse>(`/api/pdf/xml/${xmlId}`);
+    return response.data.pdfs;
+  },
+  
+  // Nova função para converter XML para PDF usando a rota do Python
+  convertWithPython: async (xmlContent: string, filename: string) => {
+    try {
+      console.log('Iniciando conversão para PDF...', { filename, xmlLength: xmlContent.length });
+      
+      // Validar se o XML parece válido
+      if (!xmlContent.trim().startsWith('<?xml') && !xmlContent.trim().startsWith('<')) {
+        throw new Error('Conteúdo não parece ser um XML válido');
+      }
+      
+      console.log('Enviando XML para conversão...');
+      
+      const response = await axios.post('http://172.21.21.84:4788/convert', {
+        xml: xmlContent
+      }, {
+        responseType: 'blob',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        timeout: 30000, // 30 segundos de timeout
+      });
+      
+      console.log('Resposta recebida:', { 
+        status: response.status, 
+        contentType: response.headers['content-type'],
+        dataSize: response.data.size 
+      });
+      
+      // Verificar se a resposta é um PDF válido
+      if (response.headers['content-type'] !== 'application/pdf') {
+        throw new Error(`Tipo de conteúdo inválido: ${response.headers['content-type']}`);
+      }
+      
+      // Criar blob e fazer download
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename.replace('.xml', '.pdf');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      console.log('Download iniciado com sucesso');
+      return blob;
+      
+    } catch (error: any) {
+      console.error('Erro na conversão para PDF:', error);
+      
+      // Se for um erro de resposta, tentar ler o conteúdo do erro
+      if (error.response) {
+        console.error('Status:', error.response.status);
+        console.error('Headers:', error.response.headers);
+        
+        // Se a resposta for texto, tentar ler
+        if (error.response.data instanceof Blob) {
+          const text = await error.response.data.text();
+          console.error('Erro do servidor:', text);
+          throw new Error(`Erro do servidor: ${text}`);
+        }
+      }
+      
+      throw error;
+    }
+  },
+  
+  // Função de teste para verificar se a rota do Python está funcionando
+  testPythonConnection: async () => {
+    try {
+      console.log('Testando conexão com o servidor Python...');
+      
+      const response = await axios.get('http://172.21.21.84:4788/api/python-converter/health', {
+        timeout: 5000,
+      });
+      
+      console.log('Conexão OK:', response.data);
+      return true;
+    } catch (error: any) {
+      console.error('Erro na conexão:', error.message);
+      return false;
+    }
   },
 };
 
@@ -162,7 +302,7 @@ export const bulkAPI = {
       formData.append('xmlFiles[]', file);
     });
     
-    const response = await api.post<{ conversionId: string }>('/api/bulk/convert', formData, {
+    const response = await api.post<{ conversionId: string }>('/api/bulk/convert-official', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     return response.data;
@@ -174,8 +314,8 @@ export const bulkAPI = {
   },
   
   list: async () => {
-    const response = await api.get<BulkConversion[]>('/api/bulk/list');
-    return response.data;
+    const response = await api.get<{ conversions: BulkConversion[]; pagination: any }>('/api/bulk/list');
+    return response.data.conversions || [];
   },
   
   download: async (conversionId: string) => {

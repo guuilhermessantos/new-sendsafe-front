@@ -16,7 +16,7 @@ export default function XMLPage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  const handleUpload = (file: XMLFile) => {
+  const handleUpload = (files: XMLFile[]) => {
     setRefreshTrigger(prev => prev + 1);
     setError(null);
   };
@@ -114,7 +114,6 @@ export default function XMLPage() {
           <XMLViewer
             file={selectedFile}
             onClose={handleCloseViewer}
-            onEdit={handleEdit}
           />
         )}
       </div>

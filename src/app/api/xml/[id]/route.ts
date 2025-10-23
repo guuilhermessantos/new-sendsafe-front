@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5000';
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -7,23 +9,25 @@ export async function GET(
   try {
     const { id } = params;
 
-    // Mock data - in a real application, this would come from a database
-    const mockFile = {
-      id,
-      filename: `document_${id}.xml`,
-      size: Math.floor(Math.random() * 1000000) + 10000,
-      type: 'DANFE' as const,
-      createdAt: new Date().toISOString(),
-      xmlContent: `<?xml version="1.0" encoding="UTF-8"?>
-<root>
-  <document>
-    <id>${id}</id>
-    <content>Mock XML content for document ${id}</content>
-  </document>
-</root>`
-    };
+    // Get authorization header from the request
+    const authHeader = request.headers.get('authorization');
+    
+    // Forward the request to the backend
+    const response = await fetch(`${BACKEND_URL}/api/xml/${id}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authHeader && { 'Authorization': authHeader }),
+      },
+    });
 
-    return NextResponse.json(mockFile);
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Failed to get file' }));
+      return NextResponse.json(errorData, { status: response.status });
+    }
+
+    const xmlFile = await response.json();
+    return NextResponse.json(xmlFile);
   } catch (error) {
     console.error('Error getting XML file:', error);
     return NextResponse.json({ error: 'Failed to get file' }, { status: 500 });

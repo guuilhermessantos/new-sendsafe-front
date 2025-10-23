@@ -18,9 +18,11 @@ export function BulkHistory({ onViewStatus }: BulkHistoryProps) {
     try {
       setLoading(true);
       const data = await bulkAPI.list();
-      setConversions(data);
+      console.log('Dados recebidos da API:', data);
+      setConversions(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Erro ao carregar conversões:', error);
+      setConversions([]);
     } finally {
       setLoading(false);
     }
@@ -125,9 +127,11 @@ export function BulkHistory({ onViewStatus }: BulkHistoryProps) {
     );
   }
 
+  console.log('Renderizando BulkHistory com conversions:', conversions);
+  
   return (
     <div className="space-y-4">
-      {conversions.map((conversion) => (
+      {Array.isArray(conversions) && conversions.map((conversion) => (
         <div
           key={conversion.id}
           className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md transition-shadow"
@@ -153,14 +157,16 @@ export function BulkHistory({ onViewStatus }: BulkHistoryProps) {
               </div>
               
               <div className="flex items-center space-x-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onViewStatus(conversion.id)}
-                  className="text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
-                >
-                  <Eye className="w-4 h-4" />
-                </Button>
+                {conversion.status !== 'completed' && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onViewStatus(conversion.id)}
+                    className="text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
+                  >
+                    <Eye className="w-4 h-4" />
+                  </Button>
+                )}
                 
                 {conversion.status === 'completed' && (
                   <Button

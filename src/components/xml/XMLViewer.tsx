@@ -3,23 +3,22 @@
 import React, { useState, useEffect } from 'react';
 import { xmlAPI, pdfAPI, XMLFile, PDFFile } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
-import { X, Download, Edit, FileText, Eye } from 'lucide-react';
+import { X, Download, FileText, Eye } from 'lucide-react';
+import { useToast } from '@/contexts/ToastContext';
 
 interface XMLViewerProps {
   file: XMLFile | null;
   onClose: () => void;
-  onEdit: (file: XMLFile) => void;
 }
 
-export function XMLViewer({ file, onClose, onEdit }: XMLViewerProps) {
+export function XMLViewer({ file, onClose }: XMLViewerProps) {
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'xml' | 'pdf'>('xml');
-  const [pdfs, setPdfs] = useState<PDFFile[]>([]);
-  const [selectedPdf, setSelectedPdf] = useState<PDFFile | null>(null);
   const [loadingPdfs, setLoadingPdfs] = useState(false);
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
+  const { showSuccess, showError, showInfo } = useToast();
 
   useEffect(() => {
     if (file) {
@@ -65,26 +64,30 @@ export function XMLViewer({ file, onClose, onEdit }: XMLViewerProps) {
 
     try {
       setLoadingPdfs(true);
-      const pdfFiles = await pdfAPI.listByXml(file.id);
       
-      // Garantir que pdfFiles seja um array
-      const pdfsArray = Array.isArray(pdfFiles) ? pdfFiles : [];
-      setPdfs(pdfsArray);
+      // Baixar o XML como blob e converter para string
+      const xmlBlob = await xmlAPI.download(file.id);
+      const xmlContent = await xmlBlob.text();
       
-      if (pdfsArray.length > 0) {
-        setSelectedPdf(pdfsArray[0]);
-        // Criar preview do primeiro PDF automaticamente
-        createPdfPreview(pdfsArray[0]);
+      console.log('XML baixado para preview, tamanho:', xmlContent.length);
+      
+      if (!xmlContent || xmlContent.trim().length === 0) {
+        throw new Error('Conteúdo XML vazio ou não encontrado');
       }
+      
+      // Converter XML para PDF usando a rota do Python
+      await convertXmlToPdfPreview(xmlContent);
+      
+      showInfo('Preview Gerado', 'XML convertido para visualização em PDF');
     } catch (error) {
-      console.error('Erro ao carregar PDFs:', error);
-      setPdfs([]); // Garantir que seja um array vazio em caso de erro
+      console.error('Erro ao gerar preview do XML:', error);
+      showError('Erro ao Gerar Preview', 'Não foi possível converter o XML para visualização');
     } finally {
       setLoadingPdfs(false);
     }
   };
 
-  const createPdfPreview = async (pdfFile: PDFFile) => {
+  const convertXmlToPdfPreview = async (xmlContent: string) => {
     try {
       setLoadingPreview(true);
       
@@ -94,16 +97,45 @@ export function XMLViewer({ file, onClose, onEdit }: XMLViewerProps) {
         setPdfPreviewUrl(null);
       }
 
-      // Baixa o PDF e cria URL local para preview
-      const blob = await pdfAPI.download(pdfFile.id);
-      const url = URL.createObjectURL(blob);
+      console.log('Convertendo XML para PDF preview...', { xmlLength: xmlContent.length });
+      
+      // Usar a rota do Python para converter XML para PDF
+      const response = await fetch('http://172.21.21.84:4788/convert', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          xml: xmlContent
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Erro do servidor (${response.status}): ${errorText}`);
+      }
+
+      // Verificar se a resposta é um PDF válido
+      const contentType = response.headers.get('content-type');
+      if (contentType !== 'application/pdf') {
+        throw new Error(`Tipo de conteúdo inválido: ${contentType}`);
+      }
+
+      // Criar blob e URL para preview
+      const pdfBlob = await response.blob();
+      const url = URL.createObjectURL(pdfBlob);
       setPdfPreviewUrl(url);
+      
+      console.log('PDF preview gerado com sucesso');
     } catch (error) {
-      console.error('Erro ao criar preview do PDF:', error);
+      console.error('Erro ao converter XML para PDF:', error);
+      showError('Erro na Conversão', `Não foi possível converter o XML para PDF: ${(error as Error).message}`);
     } finally {
       setLoadingPreview(false);
     }
   };
+
+
 
   const handleDownload = async () => {
     if (!file) return;
@@ -138,14 +170,6 @@ export function XMLViewer({ file, onClose, onEdit }: XMLViewerProps) {
             </p>
           </div>
           <div className="flex items-center space-x-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onEdit(file)}
-            >
-              <Edit className="w-4 h-4 mr-2" />
-              Editar
-            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -187,7 +211,7 @@ export function XMLViewer({ file, onClose, onEdit }: XMLViewerProps) {
               }`}
             >
               <Eye className="w-4 h-4 inline mr-2" />
-              Pré-visualizar PDF
+              Visualizar PDF
             </button>
           </nav>
         </div>
@@ -212,76 +236,55 @@ export function XMLViewer({ file, onClose, onEdit }: XMLViewerProps) {
                 <div className="flex items-center justify-center h-full">
                   <div className="text-center">
                     <div className="w-8 h-8 border-4 border-gray-300 border-t-gray-600 rounded-full animate-spin mx-auto mb-4"></div>
-                    <p className="text-gray-600 dark:text-gray-400">Carregando PDFs...</p>
+                    <p className="text-gray-600 dark:text-gray-400">Gerando preview do XML...</p>
                   </div>
                 </div>
-              ) : !Array.isArray(pdfs) || pdfs.length === 0 ? (
+              ) : !pdfPreviewUrl ? (
                 <div className="flex items-center justify-center h-full">
                   <div className="text-center">
                     <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                     <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                      Nenhum PDF encontrado
+                      Erro ao carregar XML
                     </h3>
-                    <p className="text-gray-600 dark:text-gray-400">
-                      Não há PDFs convertidos para este XML ainda.
+                    <p className="text-gray-600 dark:text-gray-400 mb-4">
+                      Não foi possível carregar o conteúdo do XML para visualização.
                     </p>
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-left">
+                      <h4 className="text-sm font-medium text-red-800 mb-2">Erro:</h4>
+                      <ul className="text-xs text-red-700 space-y-1">
+                        <li>• Verifique se o XML está válido</li>
+                        <li>• Tente recarregar a página</li>
+                        <li>• Entre em contato com o suporte se o problema persistir</li>
+                      </ul>
+                    </div>
                   </div>
                 </div>
               ) : (
-                <>
-                  {/* Seletor de PDF */}
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Selecione o PDF para visualizar:
-                    </label>
-                    <select
-                      value={selectedPdf?.id || ''}
-                      onChange={(e) => {
-                        const pdf = pdfs.find(p => p.id === e.target.value);
-                        setSelectedPdf(pdf || null);
-                        if (pdf) {
-                          createPdfPreview(pdf);
-                        }
-                      }}
-                      className="w-full max-w-md px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                    >
-                      {Array.isArray(pdfs) && pdfs.map((pdf) => (
-                        <option key={pdf.id} value={pdf.id}>
-                          {pdf.filename} ({pdf.type})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Iframe para visualização do PDF */}
-                  {selectedPdf && (
-                    <div className="flex-1 border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
-                      {loadingPreview ? (
-                        <div className="flex items-center justify-center h-full">
-                          <div className="text-center">
-                            <div className="w-8 h-8 border-4 border-gray-300 border-t-gray-600 rounded-full animate-spin mx-auto mb-4"></div>
-                            <p className="text-gray-600 dark:text-gray-400">Carregando preview...</p>
-                          </div>
-                        </div>
-                      ) : pdfPreviewUrl ? (
-                        <iframe
-                          src={pdfPreviewUrl}
-                          className="w-full h-full"
-                          title={`Visualização do PDF: ${selectedPdf.filename}`}
-                        />
-                      ) : (
-                        <div className="flex items-center justify-center h-full">
-                          <div className="text-center">
-                            <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                            <p className="text-gray-600 dark:text-gray-400">
-                              Erro ao carregar preview do PDF
-                            </p>
-                          </div>
-                        </div>
-                      )}
+                <div className="flex-1 border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
+                  {loadingPreview ? (
+                    <div className="flex items-center justify-center h-full">
+                      <div className="text-center">
+                        <div className="w-8 h-8 border-4 border-gray-300 border-t-gray-600 rounded-full animate-spin mx-auto mb-4"></div>
+                        <p className="text-gray-600 dark:text-gray-400">Gerando preview do XML...</p>
+                      </div>
+                    </div>
+                  ) : pdfPreviewUrl ? (
+                    <iframe
+                      src={pdfPreviewUrl}
+                      className="w-full h-full"
+                      title="Visualização do XML como PDF"
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-full">
+                      <div className="text-center">
+                        <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                        <p className="text-gray-600 dark:text-gray-400">
+                          Erro ao gerar preview do XML
+                        </p>
+                      </div>
                     </div>
                   )}
-                </>
+                </div>
               )}
             </div>
           )}

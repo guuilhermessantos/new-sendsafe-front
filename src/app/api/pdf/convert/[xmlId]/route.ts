@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5000';
+
 export async function POST(
   request: NextRequest,
   { params }: { params: { xmlId: string } }
@@ -7,25 +9,25 @@ export async function POST(
   try {
     const { xmlId } = params;
 
-    // Mock PDF conversion - in a real application, this would:
-    // 1. Get the XML file from storage/database
-    // 2. Process the XML to determine type (DANFE, CTE, etc.)
-    // 3. Convert to PDF using a library like puppeteer, jsPDF, or external service
-    // 4. Save the PDF to storage
-    // 5. Save metadata to database
+    // Get authorization header from the request
+    const authHeader = request.headers.get('authorization');
+    
+    // Forward the request to the backend
+    const response = await fetch(`${BACKEND_URL}/api/pdf/convert/${xmlId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authHeader && { 'Authorization': authHeader }),
+      },
+    });
 
-    const mockPdfFile = {
-      id: `pdf_${Date.now()}`,
-      filename: `document_${xmlId}.pdf`,
-      xmlId,
-      type: 'DANFE' as const,
-      createdAt: new Date().toISOString(),
-    };
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Failed to convert file' }));
+      return NextResponse.json(errorData, { status: response.status });
+    }
 
-    // Simulate processing time
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    return NextResponse.json(mockPdfFile);
+    const result = await response.json();
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Error converting XML to PDF:', error);
     return NextResponse.json({ error: 'Failed to convert file' }, { status: 500 });

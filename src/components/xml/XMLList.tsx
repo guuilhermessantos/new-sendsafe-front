@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { xmlAPI, XMLFile } from '@/lib/api';
+import { xmlAPI, pdfAPI, XMLFile } from '@/lib/api';
 import { formatFileSize, formatDate } from '@/lib/utils';
-import { FileText, Download, Edit, Trash2, Eye } from 'lucide-react';
+import { FileText, Download, Edit, Trash2, Eye, FileDown } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
 interface XMLListProps {
@@ -19,6 +19,7 @@ export function XMLList({ onEdit, onView, onDelete, refreshTrigger }: XMLListPro
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [convertingToPdf, setConvertingToPdf] = useState<string | null>(null);
 
   const limit = 10;
 
@@ -66,6 +67,46 @@ export function XMLList({ onEdit, onView, onDelete, refreshTrigger }: XMLListPro
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Erro ao baixar XML:', error);
+    }
+  };
+
+  const handleDownloadPdf = async (file: XMLFile) => {
+    try {
+      setConvertingToPdf(file.id);
+      
+      console.log('Iniciando conversão para PDF do arquivo:', file.originalName);
+      
+      // Baixar o XML como blob e converter para string
+      const xmlBlob = await xmlAPI.download(file.id);
+      const xmlContent = await xmlBlob.text();
+      
+      console.log('XML baixado, tamanho:', xmlContent.length);
+      
+      if (!xmlContent || xmlContent.trim().length === 0) {
+        throw new Error('Conteúdo XML vazio ou não encontrado');
+      }
+      
+      // Converter para PDF usando a rota do Python
+      await pdfAPI.convertWithPython(xmlContent, file.originalName);
+      
+    } catch (error: any) {
+      console.error('Erro ao converter para PDF:', error);
+      
+      let errorMessage = 'Erro ao converter XML para PDF.';
+      
+      if (error.message) {
+        errorMessage = error.message;
+      } else if (error.response?.status) {
+        errorMessage = `Erro do servidor (${error.response.status}): ${error.response.statusText}`;
+      } else if (error.code === 'ECONNREFUSED') {
+        errorMessage = 'Não foi possível conectar ao servidor de conversão. Verifique se o serviço está rodando.';
+      } else if (error.code === 'TIMEOUT') {
+        errorMessage = 'Timeout na conversão. O arquivo pode ser muito grande.';
+      }
+      
+      alert(errorMessage);
+    } finally {
+      setConvertingToPdf(null);
     }
   };
 
@@ -151,6 +192,17 @@ export function XMLList({ onEdit, onView, onDelete, refreshTrigger }: XMLListPro
                 className="text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
               >
                 <Download className="w-4 h-4" />
+              </Button>
+              
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleDownloadPdf(file)}
+                loading={convertingToPdf === file.id}
+                className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                title="Converter para PDF"
+              >
+                <FileDown className="w-4 h-4" />
               </Button>
               
               <Button

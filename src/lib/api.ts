@@ -222,7 +222,7 @@ export const pdfAPI = {
       
       console.log('Enviando XML para conversão...');
       
-      const response = await axios.post('http://172.21.21.84:4788/convert', {
+      const response = await axios.post('http://127.0.0.1:4788/convert', {
         xml: xmlContent
       }, {
         responseType: 'blob',
@@ -282,7 +282,7 @@ export const pdfAPI = {
     try {
       console.log('Testando conexão com o servidor Python...');
       
-      const response = await axios.get('http://172.21.21.84:4788/api/python-converter/health', {
+      const response = await axios.get('http://127.0.0.1:4788/api/python-converter/health', {
         timeout: 5000,
       });
       

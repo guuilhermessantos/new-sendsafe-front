@@ -4,10 +4,10 @@ const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5000';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { xmlId: string } }
+  { params }: { params: Promise<{ xmlId: string }> }
 ) {
   try {
-    const { xmlId } = params;
+    const { xmlId } = await params;
 
     // Get authorization header from the request
     const authHeader = request.headers.get('authorization');

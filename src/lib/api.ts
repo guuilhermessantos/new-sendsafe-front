@@ -152,6 +152,18 @@ export const xmlAPI = {
     return response.data;
   },
   
+  uploadMultiple: async (files: File[]) => {
+    const formData = new FormData();
+    files.forEach((file) => {
+      formData.append('xmlFiles', file);
+    });
+    
+    const response = await api.post<{ files: XMLFile[]; message: string }>('/api/xml/upload-multiple', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+  
   list: async (page = 1, limit = 10) => {
     const response = await api.get<{ files: XMLFile[]; total: number; page: number; limit: number }>(
       `/api/xml/list?page=${page}&limit=${limit}`
@@ -222,7 +234,7 @@ export const pdfAPI = {
       
       console.log('Enviando XML para conversão...');
       
-      const response = await axios.post('http://127.0.0.1:4788/convert', {
+      const response = await axios.post('https://xml-to-danfe-py.vercel.app/convert', {
         xml: xmlContent
       }, {
         responseType: 'blob',
@@ -282,7 +294,7 @@ export const pdfAPI = {
     try {
       console.log('Testando conexão com o servidor Python...');
       
-      const response = await axios.get('http://127.0.0.1:4788/api/python-converter/health', {
+      const response = await axios.get('https://xml-to-danfe-py.vercel.app/api/python-converter/health', {
         timeout: 5000,
       });
       

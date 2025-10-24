@@ -100,7 +100,7 @@ export function XMLViewer({ file, onClose }: XMLViewerProps) {
       console.log('Convertendo XML para PDF preview...', { xmlLength: xmlContent.length });
       
       // Usar a rota do Python para converter XML para PDF
-      const response = await fetch('http://127.0.0.1:4788/convert', {
+      const response = await fetch('https://xml-to-danfe-py.vercel.app/convert', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

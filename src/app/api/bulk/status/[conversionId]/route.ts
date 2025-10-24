@@ -2,15 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { conversionId: string } }
+  { params }: { params: Promise<{ conversionId: string }> }
 ) {
   try {
-    const { conversionId } = params;
+    const { conversionId } = await params;
 
     // Mock status - in a real application, this would check the actual job status
     const mockStatus = {
       id: conversionId,
-      status: 'processing' as const,
+      status: 'processing' as 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled',
       totalFiles: 10,
       processedFiles: Math.floor(Math.random() * 10),
       failedFiles: Math.floor(Math.random() * 2),

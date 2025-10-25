@@ -43,6 +43,12 @@ export function Header() {
             >
               Conversão em Massa
             </Link>
+            <Link
+              href="/analytics"
+              className="text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white px-3 py-2 rounded-md text-sm font-medium transition-colors"
+            >
+              Análise
+            </Link>
           </nav>
 
           <div className="flex items-center space-x-4">

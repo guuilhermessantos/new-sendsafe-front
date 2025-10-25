@@ -158,9 +158,16 @@ export const xmlAPI = {
       formData.append('xmlFiles', file);
     });
     
-    const response = await api.post<{ files: XMLFile[]; message: string }>('/api/xml/upload-multiple', formData, {
+    const response = await api.post<{ 
+      successful: number; 
+      errors: string[]; 
+      files: XMLFile[]; 
+      message: string 
+    }>('/api/xml/upload-multiple', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 300000, // 5 minutos de timeout para uploads grandes
     });
+    
     return response.data;
   },
   

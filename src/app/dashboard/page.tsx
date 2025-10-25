@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Layout } from '@/components/layout/Layout';
-import { FileText, Download, Upload, Zap } from 'lucide-react';
+import { FileText, Download, Upload, Zap, BarChart3 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function DashboardPage() {
@@ -52,6 +52,25 @@ export default function DashboardPage() {
                 </h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
                   Converta até 100 XMLs para PDF
+                </p>
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            href="/analytics"
+            className="group p-6 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow"
+          >
+            <div className="flex items-center">
+              <div className="p-3 bg-purple-100 dark:bg-purple-900/20 rounded-lg group-hover:bg-purple-200 dark:group-hover:bg-purple-900/30 transition-colors">
+                <BarChart3 className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+              </div>
+              <div className="ml-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Análise
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Visualize métricas e estatísticas
                 </p>
               </div>
             </div>

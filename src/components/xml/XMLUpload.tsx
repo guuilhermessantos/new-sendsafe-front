@@ -18,34 +18,40 @@ export function XMLUpload({ onUpload, onError }: XMLUploadProps) {
   const [uploadedFiles, setUploadedFiles] = useState<any[]>([]);
   const { showSuccess, showError } = useToast();
 
+  // Função para validar arquivos manualmente
+  const validateFiles = (files: File[]) => {
+    if (files.length > 10) {
+      const errorMsg = 'Máximo de 10 arquivos por vez';
+      showError('Limite Excedido', errorMsg);
+      onError(errorMsg);
+      return false;
+    }
+
+    for (const file of files) {
+      if (file.size > 10 * 1024 * 1024) {
+        const errorMsg = `Arquivo ${file.name} muito grande. Tamanho máximo: 10MB`;
+        showError('Arquivo Muito Grande', errorMsg);
+        onError(errorMsg);
+        return false;
+      }
+
+      if (!file.name.toLowerCase().endsWith('.xml')) {
+        const errorMsg = `Arquivo ${file.name} não é XML. Apenas arquivos XML são aceitos`;
+        showError('Tipo de Arquivo Inválido', errorMsg);
+        onError(errorMsg);
+        return false;
+      }
+    }
+
+    return true;
+  };
+
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return;
 
-    // Validar número máximo de arquivos
-    if (acceptedFiles.length > 100) {
-      const errorMsg = 'Máximo de 100 arquivos por vez';
-      showError('Erro no Upload', errorMsg);
-      onError(errorMsg);
+    // Usar validação manual
+    if (!validateFiles(acceptedFiles)) {
       return;
-    }
-
-    // Validar cada arquivo
-    for (const file of acceptedFiles) {
-      // Validar tamanho do arquivo (10MB)
-      if (file.size > 10 * 1024 * 1024) {
-        const errorMsg = `Arquivo ${file.name} muito grande. Tamanho máximo: 10MB`;
-        showError('Erro no Upload', errorMsg);
-        onError(errorMsg);
-        return;
-      }
-
-      // Validar tipo do arquivo
-      if (!file.name.toLowerCase().endsWith('.xml')) {
-        const errorMsg = `Arquivo ${file.name} não é XML. Apenas arquivos XML são aceitos`;
-        showError('Erro no Upload', errorMsg);
-        onError(errorMsg);
-        return;
-      }
     }
 
     try {
@@ -53,36 +59,30 @@ export function XMLUpload({ onUpload, onError }: XMLUploadProps) {
       setUploadedFiles([]);
       setUploadProgress({});
       
-      const uploadPromises = acceptedFiles.map(async (file, index) => {
-        try {
-          setUploadProgress(prev => ({ ...prev, [file.name]: 0 }));
-          
-          const uploadedFile = await xmlAPI.upload(file);
-          
-          setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
-          setUploadedFiles(prev => [...prev, uploadedFile]);
-          
-          return uploadedFile;
-        } catch (error: any) {
-          const errorMsg = `Erro ao fazer upload de ${file.name}: ${error.response?.data?.message || 'Erro desconhecido'}`;
-          showError('Erro no Upload', errorMsg);
-          throw error;
-        }
+      // Simular progresso inicial para todos os arquivos
+      acceptedFiles.forEach(file => {
+        setUploadProgress(prev => ({ ...prev, [file.name]: 0 }));
       });
-
-      const results = await Promise.allSettled(uploadPromises);
-      const successfulUploads = results
-        .filter((result): result is PromiseFulfilledResult<any> => result.status === 'fulfilled')
-        .map(result => result.value);
-
-      if (successfulUploads.length > 0) {
-        showSuccess('Upload Concluído', `${successfulUploads.length} arquivo(s) enviado(s) com sucesso!`);
-        onUpload(successfulUploads);
+      
+      // Usar a nova função de upload múltiplo
+      const result = await xmlAPI.uploadMultiple(acceptedFiles);
+      
+      // Atualizar progresso para 100% para todos os arquivos
+      acceptedFiles.forEach(file => {
+        setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
+      });
+      
+      // Verificar se houve sucessos
+      if (result.successful > 0) {
+        showSuccess('Upload Concluído', `${result.successful} arquivo(s) enviado(s) com sucesso!`);
+        setUploadedFiles(result.files || []);
+        onUpload(result.files || []);
       }
-
-      if (results.some(result => result.status === 'rejected')) {
-        const failedCount = results.filter(result => result.status === 'rejected').length;
-        showError('Upload Parcial', `${failedCount} arquivo(s) falharam no upload`);
+      
+      // Verificar se houve erros
+      if (result.errors && result.errors.length > 0) {
+        const errorCount = result.errors.length;
+        showError('Upload Parcial', `${errorCount} arquivo(s) falharam no upload`);
       }
 
     } catch (error: any) {
@@ -101,8 +101,11 @@ export function XMLUpload({ onUpload, onError }: XMLUploadProps) {
       'text/xml': ['.xml'],
       'application/xml': ['.xml'],
     },
-    maxFiles: 100,
+    // Removendo maxFiles para permitir validação manual
     disabled: uploading,
+    onDropRejected: (rejectedFiles) => {
+      showError('Arquivos Rejeitados', 'Alguns arquivos foram rejeitados. Verifique se são XML válidos.');
+    },
   });
 
   return (
@@ -133,14 +136,14 @@ export function XMLUpload({ onUpload, onError }: XMLUploadProps) {
             {uploading ? 'Fazendo upload...' : 'Arraste os XMLs aqui'}
           </h3>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-            ou clique para selecionar arquivos (até 100)
+            ou clique para selecionar arquivos (até 10)
           </p>
         </div>
         
         <div className="text-xs text-gray-500 dark:text-gray-400">
           <p>Formatos aceitos: .xml</p>
           <p>Tamanho máximo: 10MB por arquivo</p>
-          <p>Máximo: 100 arquivos por vez</p>
+          <p>Máximo: 10 arquivos por vez</p>
         </div>
 
         {uploading && Object.keys(uploadProgress).length > 0 && (

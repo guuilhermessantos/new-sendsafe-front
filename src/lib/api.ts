@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Para desenvolvimento, usar o backend (porta 5000)
 // Para produção, usar o backend (porta 5000)
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://back-sendsafe.onrender.com';
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
